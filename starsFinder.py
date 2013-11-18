@@ -92,7 +92,7 @@ def main():
 
     # Load Test Image
     imageTest = cv2.imread('stars2.jpg',cv2.CV_LOAD_IMAGE_GRAYSCALE)
- 
+
     imageTestClear = imgFilter(imageTest,'bilateral')
     imageTestClear = imgFilter(imageTestClear,'threshold')
 
