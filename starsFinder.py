@@ -85,8 +85,10 @@ def drawCircle(img,centers,radius,color,thick=3):
 def main():
 
     starDB=StarsCatalog.StarsCatalog('catalog.db')
-    skyArea = starDB.getSky(('00:00:03.26','58:00:25.6'),('02:30:00.00','30:00:00.0'))
+    skyArea = starDB.getSky(('05:40:03.26','-01:56:25.6'),('01:30:00.00','01:00:00.0'),3)
     centerPos = skyArea.center
+    print ">",centerPos.ascensionDD, centerPos.declinationDD
+
     outImg = np.zeros((800,800))
     kpTrainReal = []
     for star in skyArea:
@@ -108,7 +110,7 @@ def main():
 
 #        print star.name,':',star.position.ascensionDD,star.position.declinationDD
 
-        drawCircle(outImg,[(X,Y)],10,1,thick=10)
+        drawCircle(outImg,[(X,Y)],10,1,thick=5)
 
 
 

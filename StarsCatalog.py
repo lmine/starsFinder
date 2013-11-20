@@ -4,26 +4,22 @@ import sqlite3 as lite
 
 class CelestialCoord:
     def __init__(self,ascension,declination):
-        # ascension hh:mm:ss
-        # declination dd:mm:ss
-        self.ascension = ascension
-        self.declination = declination
-        decNeg = 1
+        # ascension hh:mm:ss 0:24
+        # declination dd:mm:ss -90:90
 
-        if declination[0]=='-':
-            print declination
-            declination = declination[1:]
-            decNeg=-1
+        ascensionSplit = [x for x in ascension.split(':') if x.strip()]
+        if len(ascensionSplit)>3:
+            print "error"
+            raise NameError('wrong format')
+        self._ascensionHMS = (int(ascensionSplit[0]),int(ascensionSplit[1]),float(ascensionSplit[2]))
+        self._ascensionDD = CelestialCoord.dechms2deg(self._ascensionHMS)
 
-        self._ascensionHMS = (int(ascension[0:2]),int(ascension[3:5]),float(ascension[6:]))
-        self._ascensionDD = self.ascensionHMS[0]*(360.0/24) +\
-                           self.ascensionHMS[1]*(360.0/24)/60 +\
-                           self.ascensionHMS[2]*(360.0/24)/3600
-
-        self._declinationDMS = (int(declination[0:2]),int(declination[3:5]),float(declination[6:]))
-        self._declinationDD = decNeg * (self.declinationDMS[0] +\
-                             self.declinationDMS[1]/60.0 +\
-                             self.declinationDMS[2]/3600.0)
+        declinationSplit = [x for x in declination.split(':') if x.strip()]
+        if len(declinationSplit)>3:
+            print "error"
+            raise NameError('wrong format')
+        self._declinationDMS = (int(declinationSplit[0]),int(declinationSplit[1]),float(declinationSplit[2]))
+        self._declinationDD = CelestialCoord.decdms2deg(self._declinationDMS)
 
     @property
     def ascensionDD(self):
@@ -39,33 +35,46 @@ class CelestialCoord:
         return self._declinationDMS
 
     @staticmethod
+    def decdms2deg(dms):
+        dd = (abs(dms[0]) + dms[1]/60.0 + dms[2]/3600.0)
+        if dms[0]<0:
+            return -dd
+        else:
+            return dd
+
+    @staticmethod
+    def dechms2deg(hms):
+        dd = (abs(hms[0]*15) + hms[1]*15/60.0 + hms[2]*15/3600.0)
+        return dd
+
+    @staticmethod
     def decdeg2dms(dd):
-        negDD=1
+        # -90 < dd < 90
+        sign = 1
         if dd < 0:
-            negDD = -1
-            dd *= negDD
+            dd = abs(dd)
+            sign = -1
 
         mnt,sec = divmod(dd*3600,60)
         deg,mnt = divmod(mnt,60)
-        if deg < 10:
-            deg = '0'+str(int(deg))
-        else:
-            deg = str(int(deg))
-        if negDD == -1:
-            deg = '-'+deg
 
-        if mnt < 10:
-                mnt = '0'+str(int(mnt))
-        else:
-            mnt = str(int(mnt))
-        sec = str(sec)
+        return sign*int(deg),int(mnt),sec
 
-        return deg,mnt,sec
+    @staticmethod
+    def decdeg2hms(dd):
+        # 0 < dd < 360
+        mnt,sec = divmod(dd*3600/15,60)
+        deg,mnt = divmod(mnt,60)
+
+        return int(deg),int(mnt),sec
+
 
 class Star:
-    def __init__(self,name,position):
+    def __init__(self,name,position,mag,absMag):
         self._name = name
         self._position = position
+        self._mag = mag
+        self._absMag = absMag
 
     @property
     def position(self):
@@ -75,13 +84,21 @@ class Star:
     def name(self):
         return self._name
 
+    @property
+    def magnitude(self):
+        return self._mag
+
+    @property
+    def absMagnitude(self):
+        return self._absMag
+
 class StarsMap:
     def __init__(self, center):
         self._center = center
         self.stars = []
 
-    def addStar(self,name,position):
-        self.stars += [Star(name,position)]
+    def addStar(self,name,position,mag,absMag):
+        self.stars += [Star(name,position,mag,absMag)]
 
     def getStarByName(self,name):
         for star in self.stars:
@@ -106,7 +123,7 @@ class StarsCatalog:
 
         # Check if file exists
 
-    def getSky(self, (ascension, declination), (dAscension,dDeclination)):
+    def getSky(self, (ascension, declination), (dAscension,dDeclination),maxMagnitude):
         # Input: sky center and size
         # Output: list of stars
 
@@ -125,34 +142,38 @@ class StarsCatalog:
         with con:
 
             cur = con.cursor()
-            maxDec = str(skyPos.declinationDD + skySize.declinationDD)
-            minDec = str(skyPos.declinationDD - skySize.declinationDD)
+            maxDec = skyPos.declinationDD + skySize.declinationDD
+            minDec = skyPos.declinationDD - skySize.declinationDD
 
-            maxAsc = str((skyPos.ascensionDD + skySize.ascensionDD)/15)
-            minAsc = str((skyPos.ascensionDD - skySize.ascensionDD)/15)
+            # Ascension 0-360 -> 0-24hr
+            maxAsc = (skyPos.ascensionDD + skySize.ascensionDD)/15
+            minAsc = (skyPos.ascensionDD - skySize.ascensionDD)/15
 
             print skyPos.declinationDD,skySize.declinationDD
-            print minDec,maxDec
+            print "Min Max Dec ",minDec,maxDec
 
-            print skyPos.ascensionDD,skyPos.ascensionDD
-            print minAsc,maxAsc
+            print skyPos.ascensionDD,skySize.ascensionDD
+            print "Min Max Asc ", minAsc,maxAsc
 
-            cur.execute('SELECT ProperName,RA,Dec,Hip FROM starsDB where ' +
-                        'Dec > ' + minDec + ' AND ' +
-                        'Dec < ' + maxDec + ' AND ' +
-                        'RA > ' + minAsc + ' AND ' +
-                        'RA < ' + maxAsc + ' AND ' +
-                        'Mag < 3.3')
+            cur.execute('SELECT ProperName,RA,Dec,Hip,Mag,AbsMag FROM starsDB where ' +
+                        'Dec > ' + str(minDec) + ' AND ' +
+                        'Dec < ' + str(maxDec) + ' AND ' +
+                        'RA > ' + str(minAsc) + ' AND ' +
+                        'RA < ' + str(maxAsc) + ' AND ' +
+                        'Mag < ' + str(maxMagnitude))
 
             rows = cur.fetchall()
             for row in rows:
                 name = row[0]
-                hour,min,sec = CelestialCoord.decdeg2dms(row[1])
-                asc = hour+':'+min+':'+sec
+                hip = str(row[3])
+                Mag = row[4]
+                AbsMag = row[5]
+                hour,min,sec = CelestialCoord.decdeg2hms(row[1]*15)
+                asc = str(hour)+':'+str(min)+':'+str(sec)
                 hour,min,sec = CelestialCoord.decdeg2dms(row[2])
-                dec = hour+':'+min+':'+sec
+                dec = str(hour)+':'+str(min)+':'+str(sec)
                 print name,row[1],asc,row[2],dec
-                self.stars.addStar(str(row[3])+' '+name,CelestialCoord(asc,dec))
+                self.stars.addStar(hip+' '+name,CelestialCoord(asc,dec),Mag,AbsMag)
 
         #self.stars.addStar('Betelgeuse',CelestialCoord('05:55:10.3','07:24:25.6'))
         #self.stars.addStar('Bellatrix',CelestialCoord('05:25:7.9','06:20:58.8'))
