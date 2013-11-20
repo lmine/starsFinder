@@ -108,7 +108,7 @@ def main():
 
 #        print star.name,':',star.position.ascensionDD,star.position.declinationDD
 
-        drawCircle(outImg,[(X,Y)],10,[(100)],thick=10)
+        drawCircle(outImg,[(X,Y)],10,1,thick=10)
 
 
 
