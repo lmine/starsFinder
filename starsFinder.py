@@ -1,8 +1,10 @@
 __author__ = 'liuc'
 
 import cv2
+from math import cos,sin,radians
 import numpy as np
 from GeometricHashTable import GeometricHashTable
+import StarsCatalog
 
 def imgFilter(imgIn,mode,par=None):
     #Median Filter
@@ -73,7 +75,7 @@ def extractKeyPoint(img,thr):
     return xyFiltered
 
 
-def drawCircle(img,centers,radius,color=255,thick=3):
+def drawCircle(img,centers,radius,color,thick=3):
     # Plot circles
     for (x,y) in centers:
         cv2.circle(img,(int(x),int(y)),radius,color,thick)
@@ -82,6 +84,38 @@ def drawCircle(img,centers,radius,color=255,thick=3):
 
 def main():
 
+    starDB=StarsCatalog.StarsCatalog('catalog.db')
+    skyArea = starDB.getSky(('00:00:03.26','58:00:25.6'),('02:30:00.00','30:00:00.0'))
+    centerPos = skyArea.center
+    outImg = np.zeros((800,800))
+    kpTrainReal = []
+    for star in skyArea:
+        X = cos(radians(star.position.declinationDD))*sin(radians(star.position.ascensionDD-centerPos.ascensionDD))
+        X /= cos(radians(centerPos.declinationDD))*cos(radians(star.position.declinationDD))*\
+             cos(radians(star.position.ascensionDD-centerPos.ascensionDD))+\
+             sin(radians(star.position.declinationDD))*sin(radians(centerPos.declinationDD))
+        Y = -(sin(radians(centerPos.declinationDD))*cos(radians(star.position.declinationDD))*\
+            cos(radians(star.position.ascensionDD-centerPos.ascensionDD))-\
+            sin(radians(star.position.declinationDD))*cos(radians(centerPos.declinationDD)))
+        Y /= cos(radians(centerPos.declinationDD))*cos(radians(star.position.declinationDD))*\
+             cos(radians(star.position.ascensionDD-centerPos.ascensionDD))+\
+             sin(radians(star.position.declinationDD))*sin(radians(centerPos.declinationDD))
+
+        X = 1000*X+600
+        Y = 1000*Y+600
+        print star.name,X,Y
+        kpTrainReal += [(int(X),int(Y))]
+
+#        print star.name,':',star.position.ascensionDD,star.position.declinationDD
+
+        drawCircle(outImg,[(X,Y)],10,[(100)],thick=10)
+
+
+
+    print len(kpTrainReal)
+    cv2.imshow('test',outImg)
+    cv2.waitKey()
+    #exit()
     # Load Train Image
     imgTrain = cv2.imread('train2.png',cv2.CV_LOAD_IMAGE_GRAYSCALE)
 
@@ -90,6 +124,7 @@ def main():
 
     kpTrain=extractKeyPoint(imgTrainClear,0.8)
 
+    kpTrain=kpTrainReal
     # Load Test Image
     imageTest = cv2.imread('stars2.jpg',cv2.CV_LOAD_IMAGE_GRAYSCALE)
 
@@ -97,7 +132,7 @@ def main():
     imageTestClear = imgFilter(imageTestClear,'threshold')
 
     kpTest=extractKeyPoint(imageTestClear,0.94)
-
+    print len(kpTest)
     # Generate Hash Table
     trainHashTable = GeometricHashTable(kpTrain)
     testHashTable = GeometricHashTable(kpTest)
@@ -124,14 +159,15 @@ def main():
         if currMax > testHashTable.countPoints*0.8 or currMax == trainHashTable.countPoints:
             break
 
+    print currMax
 
     trainBaseOpt = trainHashTable.getBasePoints(bestTrainBase)
     testBaseOpt = testHashTable.getBasePoints(bestTestBase)
 
     outImg = np.zeros((800,800))
 
-    drawCircle(outImg,(np.asarray(testBaseOpt)+4)*100,4,120,thick=2)
-    drawCircle(outImg,(np.asarray(trainBaseOpt)+4)*100,10)
+    drawCircle(outImg,(np.asarray(testBaseOpt)+4)*100,4,color=0.5,thick=4)
+    drawCircle(outImg,(np.asarray(trainBaseOpt)+4)*100,4,1,thick=4)
 
 
     drawCircle(imgTrainClear,kpTrain,10,255)
@@ -150,5 +186,4 @@ def main():
         keyP = cv2.waitKey()
 
 if __name__ == '__main__':
-    print "ciao"
     main()
