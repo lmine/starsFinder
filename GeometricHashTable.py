@@ -16,7 +16,6 @@ class GeometricHashTable:
         for baseX1,baseY1 in points:
             points2=points[:]
             points2.remove((baseX1,baseY1))
-
             for baseX2,baseY2 in points2:
                 centerX = baseX1+(baseX2-baseX1)/2.
                 centerY = baseY1+(baseY2-baseY1)/2.
@@ -40,12 +39,13 @@ class GeometricHashTable:
         newCoord = [tuple(np.dot(invNewBasis,point)) for point in kpNewCenter]
         return newCoord
 
-    def findClosestPoint(self,point):
+    def findClosestPoint(self,point,base=-1):
         result = []
 
         for baseCount,kdtree in self.hashTableKDTree:
-            dist, idx = kdtree.query(point)
-            result += [(dist,baseCount)]
+            if (base == -1) or (baseCount==base):
+                dist, idx = kdtree.query(point)
+                result += [(dist,baseCount,idx)]
 
         return result
 

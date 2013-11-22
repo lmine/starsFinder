@@ -106,6 +106,9 @@ class StarsMap:
                 return star
         return None
 
+    def getStarByIdx(self,idx):
+        return self.stars[idx]
+
     @property
     def center(self):
         return self._center
@@ -145,22 +148,17 @@ class StarsCatalog:
             maxDec = skyPos.declinationDD + skySize.declinationDD
             minDec = skyPos.declinationDD - skySize.declinationDD
 
-            # Ascension 0-360 -> 0-24hr
+            # Ascension 0-360 -> 0-24hr || db format
             maxAsc = (skyPos.ascensionDD + skySize.ascensionDD)/15
             minAsc = (skyPos.ascensionDD - skySize.ascensionDD)/15
-
-            print skyPos.declinationDD,skySize.declinationDD
-            print "Min Max Dec ",minDec,maxDec
-
-            print skyPos.ascensionDD,skySize.ascensionDD
-            print "Min Max Asc ", minAsc,maxAsc
 
             cur.execute('SELECT ProperName,RA,Dec,Hip,Mag,AbsMag FROM starsDB where ' +
                         'Dec > ' + str(minDec) + ' AND ' +
                         'Dec < ' + str(maxDec) + ' AND ' +
                         'RA > ' + str(minAsc) + ' AND ' +
                         'RA < ' + str(maxAsc) + ' AND ' +
-                        'Mag < ' + str(maxMagnitude))
+                        'Mag < ' + str(maxMagnitude) + ' AND ' +
+                        'Hip > 0')
 
             rows = cur.fetchall()
             for row in rows:
@@ -172,7 +170,6 @@ class StarsCatalog:
                 asc = str(hour)+':'+str(min)+':'+str(sec)
                 hour,min,sec = CelestialCoord.decdeg2dms(row[2])
                 dec = str(hour)+':'+str(min)+':'+str(sec)
-                print name,row[1],asc,row[2],dec
                 self.stars.addStar(hip+' '+name,CelestialCoord(asc,dec),Mag,AbsMag)
 
         #self.stars.addStar('Betelgeuse',CelestialCoord('05:55:10.3','07:24:25.6'))

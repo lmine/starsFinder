@@ -85,11 +85,11 @@ def drawCircle(img,centers,radius,color,thick=3):
 def main():
 
     starDB=StarsCatalog.StarsCatalog('catalog.db')
-    skyArea = starDB.getSky(('05:40:03.26','-01:56:25.6'),('01:30:00.00','01:00:00.0'),3)
-    centerPos = skyArea.center
-    print ">",centerPos.ascensionDD, centerPos.declinationDD
 
-    outImg = np.zeros((800,800))
+    skyArea = starDB.getSky(('1:09:44.0','39:37:12.6'),('02:30:48.00','22:0:00.0'),4)
+    centerPos = skyArea.center
+
+    #outImg = np.zeros((800,800))
     kpTrainReal = []
     for star in skyArea:
         X = cos(radians(star.position.declinationDD))*sin(radians(star.position.ascensionDD-centerPos.ascensionDD))
@@ -103,38 +103,38 @@ def main():
              cos(radians(star.position.ascensionDD-centerPos.ascensionDD))+\
              sin(radians(star.position.declinationDD))*sin(radians(centerPos.declinationDD))
 
-        X = 1000*X+600
-        Y = 1000*Y+600
+        X = 700*X+400
+        Y = 700*Y+400
         print star.name,X,Y
         kpTrainReal += [(int(X),int(Y))]
 
 #        print star.name,':',star.position.ascensionDD,star.position.declinationDD
 
-        drawCircle(outImg,[(X,Y)],10,1,thick=5)
+        #drawCircle(outImg,[(X,Y)],10,1,thick=5)
 
 
 
-    print len(kpTrainReal)
-    cv2.imshow('test',outImg)
-    cv2.waitKey()
+    print "DB stars: ",len(kpTrainReal)
+    #cv2.imshow('test',outImg)
+    #cv2.waitKey()
     #exit()
-    # Load Train Image
-    imgTrain = cv2.imread('train2.png',cv2.CV_LOAD_IMAGE_GRAYSCALE)
-
-    imgTrainClear = imgFilter(imgTrain,'bilateral')
-    imgTrainClear = imgFilter(imgTrainClear,'threshold')
-
-    kpTrain=extractKeyPoint(imgTrainClear,0.8)
+#    # Load Train Image
+#    imgTrain = cv2.imread('train2.png',cv2.CV_LOAD_IMAGE_GRAYSCALE)
+#
+#    imgTrainClear = imgFilter(imgTrain,'bilateral')
+#    imgTrainClear = imgFilter(imgTrainClear,'threshold')
+#
+#    kpTrain=extractKeyPoint(imgTrainClear,0.8)
 
     kpTrain=kpTrainReal
     # Load Test Image
-    imageTest = cv2.imread('stars2.jpg',cv2.CV_LOAD_IMAGE_GRAYSCALE)
+    imgTest = cv2.imread('stars2.jpg',cv2.CV_LOAD_IMAGE_GRAYSCALE)
 
-    imageTestClear = imgFilter(imageTest,'bilateral')
-    imageTestClear = imgFilter(imageTestClear,'threshold')
+    imgTestClear = imgFilter(imgTest,'bilateral')
+    imgTestClear = imgFilter(imgTestClear,'threshold')
 
-    kpTest=extractKeyPoint(imageTestClear,0.94)
-    print len(kpTest)
+    kpTest=extractKeyPoint(imgTestClear,0.8)
+    print "Test stars: ",len(kpTest)
     # Generate Hash Table
     trainHashTable = GeometricHashTable(kpTrain)
     testHashTable = GeometricHashTable(kpTest)
@@ -147,7 +147,7 @@ def main():
     for testBase,testPoints in testHashTable.values():
         result = trainHashTable.findClosestPoint(testPoints)
         currBaseFound=dict()
-        for dist,trainBase in result:
+        for dist,trainBase,idx in result:
             if sum(dist < DIST_THR) > 0:
                 if not currBaseFound.has_key(trainBase):
                     currBaseFound[trainBase] = 0
@@ -161,26 +161,32 @@ def main():
         if currMax > testHashTable.countPoints*0.8 or currMax == trainHashTable.countPoints:
             break
 
-    print currMax
+    print "Correspondences found: ",currMax
+
 
     trainBaseOpt = trainHashTable.getBasePoints(bestTrainBase)
     testBaseOpt = testHashTable.getBasePoints(bestTestBase)
 
-    outImg = np.zeros((800,800))
+    [(dist,trainBase,idx)] = trainHashTable.findClosestPoint(testBaseOpt,bestTrainBase)
 
-    drawCircle(outImg,(np.asarray(testBaseOpt)+4)*100,4,color=0.5,thick=4)
-    drawCircle(outImg,(np.asarray(trainBaseOpt)+4)*100,4,1,thick=4)
+    #outImg = np.zeros((800,800))
+    #drawCircle(outImg,(np.asarray(testBaseOpt)+4)*100,4,color=0.5,thick=3)
+    #drawCircle(outImg,(np.asarray(trainBaseOpt)+4)*100,6,1,thick=3)
 
+    count = 0
+    for point in kpTest:
+        drawCircle(imgTest,[point],10,255)
+        cv2.putText(imgTest, skyArea.getStarByIdx(idx[count]).name , point,cv2.FONT_HERSHEY_TRIPLEX, 2,255)
+        count += 1
+#
 
-    drawCircle(imgTrainClear,kpTrain,10,255)
-    drawCircle(imageTestClear,kpTest,10,255)
+    cv2.imwrite('testdec.jpg',imgTest)
+    imgTest = cv2.resize(imgTest,(0,0),fx=0.3,fy=0.3)
+    #imgTrainClear = cv2.resize(imgTrainClear,(0,0),fx=1,fy=1)
 
-    imageTestClear = cv2.resize(imageTestClear,(0,0),fx=0.3,fy=0.3)
-    imgTrainClear = cv2.resize(imgTrainClear,(0,0),fx=0.25,fy=0.25)
-
-    cv2.imshow('Test', imageTestClear) # show the image
-    cv2.imshow('Train', imgTrainClear) # show the image
-    cv2.imshow('Plot Result', outImg) # show the image
+    cv2.imshow('Test', imgTest) # show the image
+ #   cv2.imshow('Train', imgTrainClear) # show the image
+    #cv2.imshow('Plot Result', outImg) # show the image
 
 
     keyP = cv2.waitKey()
