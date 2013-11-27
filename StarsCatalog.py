@@ -124,7 +124,6 @@ class StarsCatalog:
     def __init__(self,dbFile):
         # load stars from file
         self.dbFile = dbFile
-        self.stars = None
 
         # Check if file exists
 
@@ -137,7 +136,7 @@ class StarsCatalog:
         skyPos = CelestialCoord(ascension,declination)
         skySize = CelestialCoord(dAscension,dDeclination)
 
-        self.stars = StarsMap(skyPos)
+        stars = StarsMap(skyPos)
         #starPosition=CelestialCoord('00:08:23.26','29:05:25.6')
         #self.stars.addStar('Alpheratz',starPosition)
         #starPosition=CelestialCoord('00:40:30.44','56:32:14.4')
@@ -162,8 +161,6 @@ class StarsCatalog:
             maxAsc = ((skyPos.ascensionDD + skySize.ascensionDD)/15)
             minAsc = ((skyPos.ascensionDD - skySize.ascensionDD)/15)
 
-            print minAsc,maxAsc
-
             maxAsc %= 24
             minAsc %= 24
 
@@ -171,11 +168,6 @@ class StarsCatalog:
                 RA_condition = 'OR'
             else:
                 RA_condition = 'AND'
-
-            print 'RA > ' + str(minAsc) + ' ' +  RA_condition + ' RA < ' + str(maxAsc)
-            print 'dec > ' + str(minDec) + ' ' +  dec_condition + ' dec < ' + str(maxDec)
-                                    ## a < x < b, x > a x < b
-
 
             cur.execute(''
                         'SELECT ProperName,RA,Dec,Hip,Mag,AbsMag FROM starsDB where ' +
@@ -188,7 +180,6 @@ class StarsCatalog:
                         )
 
             rows = cur.fetchall()
-            print len(rows)
             for row in rows:
                 name = row[0]
                 hip = str(row[3])
@@ -198,7 +189,7 @@ class StarsCatalog:
                 #asc = (hour)+':'+str(min)+':'+str(sec)
                 dec = CelestialCoord.decdeg2dms(row[2])
                 #dec = str(hour)+':'+str(min)+':'+str(sec)
-                self.stars.addStar(hip,name,CelestialCoord(asc,dec),Mag,AbsMag)
+                stars.addStar(hip,name,CelestialCoord(asc,dec),Mag,AbsMag)
 
         #self.stars.addStar('Betelgeuse',CelestialCoord('05:55:10.3','07:24:25.6'))
         #self.stars.addStar('Bellatrix',CelestialCoord('05:25:7.9','06:20:58.8'))
@@ -209,4 +200,4 @@ class StarsCatalog:
         #self.stars.addStar('Sirius',CelestialCoord('06:45:8.3','-16:43:15.8'))
 
 
-        return self.stars
+        return stars

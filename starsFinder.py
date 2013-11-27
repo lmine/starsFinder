@@ -1,14 +1,16 @@
 __author__ = 'liuc'
 
 import cv2
+import Queue    # For Python 2.x use 'import Queue as queue'
+import threading
 from math import cos, sin, radians
 import numpy as np
 from GeometricHashTable import GeometricHashTable
 import StarsCatalog
 
 DIST_THR = 0.05
-auto_mode = 0
-
+auto_mode = 1
+starsDB = None
 
 def imgFilter(imgIn, mode, par=None):
     #Median Filter
@@ -149,9 +151,7 @@ def getMatch(train, test):
     solution_found = 0
 
     trainHashTable = GeometricHashTable(train)
-    print len(trainHashTable.values())
     testHashTable = GeometricHashTable(test, 1)
-    print len(testHashTable.values())
 
     # Fine best match
     currMax = 0
@@ -178,6 +178,7 @@ def getMatch(train, test):
     print "Correspondences found: ", currMax
 
     if solution_found == 0:
+        print "no solution"
         return None
 
     trainBaseOpt = trainHashTable.getBasePoints(bestTrainBase)
@@ -197,9 +198,40 @@ def getMatch(train, test):
     return result
 
 
+def t_findSolution(q_result, p):
+    global starsDB
+    #par_list = ['points','RA','declination','RA_size','declination_size','magnitude_min','magnitude_max','min_points']
+    #p = {}
+    #for name in par_list:
+    #    if name in kwargs:
+    #        p[name] = kwargs.pop(name)
+    #    else:
+    #        q_result.put(None)
+    #        return
+
+    magnitude = p['magnitude_min']
+    print "Start thr: ",p['RA']," - ",p['declination']," - ", magnitude
+    skyArea = selectSkyArea(starsDB, p['RA'], p['declination'], p['RA_size'], p['declination_size'], magnitude)
+    while len(skyArea.stars) < p['min_points']:
+        magnitude += 0.2
+        if magnitude > p['magnitude_max']:
+            q_result.put(None)
+            return
+        #print "Increase: ",p['RA']," - ",p['declination']," - ", magnitude
+        skyArea = selectSkyArea(starsDB, p['RA'], p['declination'], p['RA_size'], p['declination_size'], magnitude)
+
+
+    kpTrain = starsCoordProjection(skyArea)
+    result = getMatch(kpTrain, p['points'])
+    if result is not None:
+        q_result.put([skyArea,result])
+    else:
+        q_result.put(None)
+
 def main():
     global DIST_THR
-
+    global starsDB
+    global auto_mode
 
     # Load Test Image
     imgTest = cv2.imread('stars2.jpg', cv2.CV_LOAD_IMAGE_GRAYSCALE)
@@ -213,38 +245,54 @@ def main():
     starsDB = StarsCatalog.StarsCatalog('catalog.db')
 
     NUM_STARS_THR = 8
-    auto_mode = 0
-    RA = 0
-    declination = 0
+    RA = 350
+    declination = 40
 
-    while 1:
-        magnitude = 3
+    if auto_mode == 1:
+        q = Queue.Queue()
+
         while 1:
-            if declination > 90:
-                print "end search"
-                exit()
+            print "Running thread: ",threading.activeCount()
+            while threading.active_count() < 3:
+                par = {
+                    'points':kpTest,
+                    'RA':RA,
+                    'declination':declination,
+                    'RA_size':25,
+                    'declination_size':25,
+                    'magnitude_min':3,
+                    'magnitude_max':10,
+                    'min_points':8
+                }
+                t = threading.Thread(target=t_findSolution, args=(q,par))
+                RA += 5
+                if RA > 360:
+                    RA = 0
+                    declination += 5
+                    if declination > 90:
+                        print "end search"
+                        exit()
 
-            skyArea = selectSkyArea(starsDB, RA, declination, 25, 25, magnitude)
-            tmp = starsCoordProjection(skyArea)
+                t.daemon = True
+                t.start()
 
-            if auto_mode == 1:
-                k = cv2.waitKey(15)
-                if k == ord('a'):
-                    auto_mode = 0
-                    continue
-                elif k == 27:
-                    exit()
+            print "wait end thread"
+            res = q.get()
+            if res is None:
+                print "no match"
+                continue
+            else:
+                print "FOUND"
+                skyArea=res[0]
+                result=res[1]
+                break
+    else:
+        while 1:
+            magnitude = 3
+            while 1:
+                skyArea = selectSkyArea(starsDB, RA, declination, 25, 25, magnitude)
+                tmp = starsCoordProjection(skyArea)
 
-                if len(skyArea.stars) > NUM_STARS_THR:
-                    RA += 5
-                    if RA > 360:
-                        RA = 0
-                        declination += 5
-                    break
-                else:
-                    magnitude += 0.2
-                    continue
-            elif auto_mode == 0:
                 print "wait key"
                 k = cv2.waitKey()
 
@@ -268,18 +316,17 @@ def main():
                 declination = (declination + 90) % 180 - 90
                 RA %= 360
 
-        kpTrain = starsCoordProjection(skyArea)
+            kpTrain = starsCoordProjection(skyArea)
 
-        print "DB stars: ", len(kpTrain)
-        print "DB stars: ", len(kpTest)
+            print "DB stars: ", len(kpTrain)
+            print "DB stars: ", len(kpTest)
 
-        result = getMatch(kpTrain, kpTest)
-        if result is None:
-            print "no match"
-            continue
-        else:
-            break
-
+            result = getMatch(kpTrain, kpTest)
+            if result is None:
+                print "no match"
+                continue
+            else:
+                break
 
     count = 0
     print result
