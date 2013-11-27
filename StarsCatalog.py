@@ -6,19 +6,16 @@ class CelestialCoord:
     def __init__(self,ascension,declination):
         # ascension hh:mm:ss 0:24
         # declination dd:mm:ss -90:90
-
-        ascensionSplit = [x for x in ascension.split(':') if x.strip()]
-        if len(ascensionSplit)>3:
+        if len(ascension) != 3:
             print "error"
             raise NameError('wrong format')
-        self._ascensionHMS = (int(ascensionSplit[0]),int(ascensionSplit[1]),float(ascensionSplit[2]))
+        if len(declination) != 3:
+            print "error"
+            raise NameError('wrong format')
+        self._ascensionHMS = (int(ascension[0]),int(ascension[1]),float(ascension[2]))
         self._ascensionDD = CelestialCoord.dechms2deg(self._ascensionHMS)
 
-        declinationSplit = [x for x in declination.split(':') if x.strip()]
-        if len(declinationSplit)>3:
-            print "error"
-            raise NameError('wrong format')
-        self._declinationDMS = (int(declinationSplit[0]),int(declinationSplit[1]),float(declinationSplit[2]))
+        self._declinationDMS = (int(declination[0]),int(declination[1]),float(declination[2]))
         self._declinationDD = CelestialCoord.decdms2deg(self._declinationDMS)
 
     @property
@@ -70,7 +67,8 @@ class CelestialCoord:
 
 
 class Star:
-    def __init__(self,name,position,mag,absMag):
+    def __init__(self,hip,name,position,mag,absMag):
+        self._hip = hip
         self._name = name
         self._position = position
         self._mag = mag
@@ -85,6 +83,10 @@ class Star:
         return self._name
 
     @property
+    def hip(self):
+        return self._hip
+
+    @property
     def magnitude(self):
         return self._mag
 
@@ -97,8 +99,8 @@ class StarsMap:
         self._center = center
         self.stars = []
 
-    def addStar(self,name,position,mag,absMag):
-        self.stars += [Star(name,position,mag,absMag)]
+    def addStar(self,hip,name,position,mag,absMag):
+        self.stars += [Star(hip,name,position,mag,absMag)]
 
     def getStarByName(self,name):
         for star in self.stars:
@@ -148,29 +150,55 @@ class StarsCatalog:
             maxDec = skyPos.declinationDD + skySize.declinationDD
             minDec = skyPos.declinationDD - skySize.declinationDD
 
-            # Ascension 0-360 -> 0-24hr || db format
-            maxAsc = (skyPos.ascensionDD + skySize.ascensionDD)/15
-            minAsc = (skyPos.ascensionDD - skySize.ascensionDD)/15
+            maxDec = (maxDec + 90)%180 - 90
+            minDec = (minDec + 90)%180 - 90
 
-            cur.execute('SELECT ProperName,RA,Dec,Hip,Mag,AbsMag FROM starsDB where ' +
-                        'Dec > ' + str(minDec) + ' AND ' +
-                        'Dec < ' + str(maxDec) + ' AND ' +
-                        'RA > ' + str(minAsc) + ' AND ' +
-                        'RA < ' + str(maxAsc) + ' AND ' +
+            if minDec>maxDec:
+                dec_condition = 'OR'
+            else:
+                dec_condition = 'AND'
+
+            # Ascension 0-360 -> 0-24hr || db format
+            maxAsc = ((skyPos.ascensionDD + skySize.ascensionDD)/15)
+            minAsc = ((skyPos.ascensionDD - skySize.ascensionDD)/15)
+
+            print minAsc,maxAsc
+
+            maxAsc %= 24
+            minAsc %= 24
+
+            if minAsc>maxAsc:
+                RA_condition = 'OR'
+            else:
+                RA_condition = 'AND'
+
+            print 'RA > ' + str(minAsc) + ' ' +  RA_condition + ' RA < ' + str(maxAsc)
+            print 'dec > ' + str(minDec) + ' ' +  dec_condition + ' dec < ' + str(maxDec)
+                                    ## a < x < b, x > a x < b
+
+
+            cur.execute(''
+                        'SELECT ProperName,RA,Dec,Hip,Mag,AbsMag FROM starsDB where ' +
+                        '(Dec > ' + str(minDec) + ' ' + dec_condition + ' ' +
+                        'Dec < ' + str(maxDec) + ') AND ' +
+                        '(RA > ' + str(minAsc) + ' ' + RA_condition + ' ' +
+                        'RA < ' + str(maxAsc) + ') AND ' +
                         'Mag < ' + str(maxMagnitude) + ' AND ' +
-                        'Hip > 0')
+                        'Hip > 0'
+                        )
 
             rows = cur.fetchall()
+            print len(rows)
             for row in rows:
                 name = row[0]
                 hip = str(row[3])
                 Mag = row[4]
                 AbsMag = row[5]
-                hour,min,sec = CelestialCoord.decdeg2hms(row[1]*15)
-                asc = str(hour)+':'+str(min)+':'+str(sec)
-                hour,min,sec = CelestialCoord.decdeg2dms(row[2])
-                dec = str(hour)+':'+str(min)+':'+str(sec)
-                self.stars.addStar(hip+' '+name,CelestialCoord(asc,dec),Mag,AbsMag)
+                asc = CelestialCoord.decdeg2hms(row[1]*15)
+                #asc = (hour)+':'+str(min)+':'+str(sec)
+                dec = CelestialCoord.decdeg2dms(row[2])
+                #dec = str(hour)+':'+str(min)+':'+str(sec)
+                self.stars.addStar(hip,name,CelestialCoord(asc,dec),Mag,AbsMag)
 
         #self.stars.addStar('Betelgeuse',CelestialCoord('05:55:10.3','07:24:25.6'))
         #self.stars.addStar('Bellatrix',CelestialCoord('05:25:7.9','06:20:58.8'))
