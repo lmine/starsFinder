@@ -9,17 +9,17 @@ from GeometricHashTable import GeometricHashTable
 import StarsCatalog
 
 DIST_THR = 0.05
-auto_mode = 1
+auto_mode = 0
 starsDB = None
 
-def imgFilter(imgIn, mode, par=None):
+def img_filter(imgIn, mode, par=None):
     #Median Filter
     if mode == 'median':
         if par != None:
             i = par
         else:
             i = 5
-        imgOut = cv2.medianBlur(imgIn, i)
+        img_out = cv2.medianBlur(imgIn, i)
 
     #Gaussian Filter
     elif mode == 'gaussian':
@@ -27,7 +27,7 @@ def imgFilter(imgIn, mode, par=None):
             i = par
         else:
             i = 3
-        imgOut = cv2.GaussianBlur(imgIn, (i, i), 0)
+        img_out = cv2.GaussianBlur(imgIn, (i, i), 0)
 
     elif mode == 'bilateral':
     #Bilateral
@@ -35,7 +35,7 @@ def imgFilter(imgIn, mode, par=None):
             i = par
         else:
             i = 9
-        imgOut = cv2.bilateralFilter(imgIn, i, i * 2, i / 2)
+        img_out = cv2.bilateralFilter(imgIn, i, i * 2, i / 2)
 
     elif mode == 'threshold':
         #Threshold
@@ -44,155 +44,114 @@ def imgFilter(imgIn, mode, par=None):
         else:
             i = 50
         imgIn[np.where(imgIn < i)] = 0
-        imgOut = imgIn
+        img_out = imgIn
     else:
         raise Exception("Invalid filtering mode")
 
-    return imgOut
+    return img_out
 
 
-def extractKeyPoint(img, thr):
+def extract_key_point(img, thr):
     minV, maxV, minPos, maxPos = cv2.minMaxLoc(img)
     row, column = np.where(img > maxV * thr)
-    xyPos = zip(column, row)
+    xy_pos = zip(column, row)
 
-    val = [img[y][x] for (x, y) in xyPos]
-    #for (x,y) in xyPos:
+    val = [img[y][x] for (x, y) in xy_pos]
+    #for (x,y) in xy_pos:
     #    val += (img[y][x],)
 
-    xyPosValue = zip(xyPos, val)
-    xyPosValue = sorted(xyPosValue, key=lambda x: x[1], reverse=True)
+    xy_pos_value = zip(xy_pos, val)
+    xy_pos_value = sorted(xy_pos_value, key=lambda x: x[1], reverse=True)
 
-    xyFiltered = []
+    xy_filtered = []
 
     # Get only one point for each star
     MAX_SQUARE_DISTANCE = 2000
-    for (x, y), value in xyPosValue:
+    for (x, y), value in xy_pos_value:
         skipVal = False
 
-        for x2, y2 in xyFiltered:
+        for x2, y2 in xy_filtered:
             if ((x - x2) ** 2 + (y - y2) ** 2) < MAX_SQUARE_DISTANCE:
                 skipVal = True
 
         if not skipVal:
-            xyFiltered += [(x, y), ]
+            xy_filtered += [(x, y), ]
 
-    return xyFiltered
+    return xy_filtered
 
 
-def drawCircle(img, centers, radius, color, thick=3):
+def draw_circle(img, centers, radius, color, thick=3):
     # Plot circles
     for (x, y) in centers:
         cv2.circle(img, (int(x), int(y)), radius, color, thick)
 
 
-def starsCoordProjection(skyArea):
-    center_position = skyArea.center
-
-    outImg = np.zeros((800, 800))
-    newCoord = []
-
-    for star in skyArea:
-        star_declination = radians(star.position.declinationDD)
-        star_RA = radians(star.position.ascensionDD)
-
-        center_declination = radians(center_position.declinationDD)
-        center_RA = radians(center_position.ascensionDD)
-
-        X = cos(star_declination) * sin(star_RA - center_RA)
-        X /= cos(center_declination) * cos(star_declination) * cos(star_RA - center_RA) + \
-             sin(star_declination) * sin(center_declination)
-        Y = -(sin(center_declination) * cos(star_declination) * cos(star_RA - center_RA) - \
-              sin(star_declination) * cos(center_declination))
-        Y /= cos(center_declination) * cos(star_declination) * cos(star_RA - center_RA) + \
-             sin(star_declination) * sin(center_declination)
-
-        X = 700 * X + 400
-        Y = 700 * Y + 400
-        #print star.name, X, Y
-        drawCircle(outImg, [(X, Y)], 4, 0.6, thick=1)
-        cv2.putText(outImg, star.hip + ':' + star.name, (int(X), int(Y)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, 255)
-
-        newCoord += [(int(X), int(Y))]
-
-    cv2.imshow('test', outImg)
-
-    return newCoord
-
-
-def selectSkyArea(starsDB, RA, declination, RA_size=20, declination_size=20, magnitude=3):
-    global auto_mode
-    global DIST_THR
-
-    RA_ = RA
+def select_sky_area(stars_db, ra, declination, ra_size=20, declination_size=20, magnitude=3):
+    ra_ = ra
     declination_ = declination
 
-    RA_hms = StarsCatalog.CelestialCoord.decdeg2hms(RA_)
+    ra_hms = StarsCatalog.CelestialCoord.decdeg2hms(ra_)
     declination_dms = StarsCatalog.CelestialCoord.decdeg2dms(declination_)
 
-    RA_size_hms = StarsCatalog.CelestialCoord.decdeg2hms(RA_size)
+    ra_size_hms = StarsCatalog.CelestialCoord.decdeg2hms(ra_size)
     declination_size_dms = StarsCatalog.CelestialCoord.decdeg2dms(declination_size)
 
-    print str(RA_hms[0]) + ':' + str(RA_hms[1]) + ':' + str(RA_hms[2]), str(declination_dms[0]) + ':' + str(
+    print str(ra_hms[0]) + ':' + str(ra_hms[1]) + ':' + str(ra_hms[2]), str(declination_dms[0]) + ':' + str(
         declination_dms[1]) + ':' + str(declination_dms[2])
 
-    skyArea = starsDB.getSky(
-        (RA_hms, declination_dms),
-        (RA_size_hms, declination_size_dms),
+    sky_area = stars_db.getsky(
+        (ra_hms, declination_dms),
+        (ra_size_hms, declination_size_dms),
         magnitude
     )
 
-    return skyArea
+    return sky_area
 
 
-def getMatch(train, test):
+def get_match(train, test):
 # Generate Hash Table
     global DIST_THR
-    solution_found = 0
 
-    trainHashTable = GeometricHashTable(train)
-    testHashTable = GeometricHashTable(test, 1)
+    train_hashtbl = GeometricHashTable(train)
+    test_hashtbl = GeometricHashTable(test, 1)
 
     # Fine best match
-    currMax = 0
-    bestTestBase = bestTrainBase = 0
+    max_match = 0
+    best_test_base = best_train_base = 0
 
-    for testBase, testPoints in testHashTable.values():
-        result = trainHashTable.findClosestPoint(testPoints)
-        currBaseFound = dict()
-        for dist, trainBase, idx in result:
+    for test_base, test_points in test_hashtbl.values():
+        result = train_hashtbl.findClosestPoint(test_points)
+        curr_base_found = dict()
+        for dist, train_base, idx in result:
             if sum(dist < DIST_THR) > 0:
-                if not currBaseFound.has_key(trainBase):
-                    currBaseFound[trainBase] = 0
-                currBaseFound[trainBase] += sum(dist < DIST_THR)
+                if not curr_base_found.has_key(train_base):
+                    curr_base_found[train_base] = 0
+                curr_base_found[train_base] += sum(dist < DIST_THR)
 
-        if max(currBaseFound.values()) > currMax:
-            bestTestBase = testBase
-            bestTrainBase = max(currBaseFound, key=currBaseFound.get)
-            currMax = max(currBaseFound.values())
+        if max(curr_base_found.values()) > max_match:
+            best_test_base = test_base
+            best_train_base = max(curr_base_found, key=curr_base_found.get)
+            max_match = max(curr_base_found.values())
 
-        if currMax > testHashTable.countPoints * 0.8 or currMax >= trainHashTable.countPoints * 0.8:
-            solution_found = 1
+        if max_match > test_hashtbl.countPoints * 0.8 or max_match >= train_hashtbl.countPoints * 0.8:
             break
-
-    print "Correspondences found: ", currMax
-
-    if solution_found == 0:
+    else:
         print "no solution"
         return None
 
-    trainBaseOpt = trainHashTable.getBasePoints(bestTrainBase)
-    testBaseOpt = testHashTable.getBasePoints(bestTestBase)
+    print "Correspondences found: ", max_match
 
-    [(dist, trainBase, idx)] = trainHashTable.findClosestPoint(testBaseOpt, bestTrainBase)
+    train_base_opt = train_hashtbl.getBasePoints(best_train_base)
+    test_base_opt = test_hashtbl.getBasePoints(best_test_base)
+
+    [(dist, train_base, idx)] = train_hashtbl.findClosestPoint(test_base_opt, best_train_base)
     result = dict()
     count = 0
-    # result: test -> train
+
+    # result: {test_pos: train_pos}
     for position in zip(dist, idx):
         if position[0] < DIST_THR:
-            result[count] = position[1]
-        else:
-            result[count] = -1
+            result[test[count]] = train[position[1]]
         count += 1
 
     return result
@@ -211,22 +170,21 @@ def t_findSolution(q_result, p):
 
     magnitude = p['magnitude_min']
     print "Start thr: ",p['RA']," - ",p['declination']," - ", magnitude
-    skyArea = selectSkyArea(starsDB, p['RA'], p['declination'], p['RA_size'], p['declination_size'], magnitude)
-    while len(skyArea.stars) < p['min_points']:
+    sky_area = select_sky_area(starsDB, p['RA'], p['declination'], p['RA_size'], p['declination_size'], magnitude)
+    while len(sky_area.stars) < p['min_points']:
         magnitude += 0.2
         if magnitude > p['magnitude_max']:
             q_result.put(None)
             return
         #print "Increase: ",p['RA']," - ",p['declination']," - ", magnitude
-        skyArea = selectSkyArea(starsDB, p['RA'], p['declination'], p['RA_size'], p['declination_size'], magnitude)
+        sky_area = select_sky_area(starsDB, p['RA'], p['declination'], p['RA_size'], p['declination_size'], magnitude)
 
-
-    kpTrain = starsCoordProjection(skyArea)
-    result = getMatch(kpTrain, p['points'])
-    if result is not None:
-        q_result.put([skyArea,result])
-    else:
-        q_result.put(None)
+    kpTrain = [star.coordinate for star in sky_area.stars]
+    match_points = get_match(kpTrain, p['points'])
+    result = {}
+    for key in match_points.keys():
+        result[key] = sky_area.get_star_by_coord(match_points[key])
+    q_result.put(result)
 
 def main():
     global DIST_THR
@@ -235,17 +193,17 @@ def main():
 
     # Load Test Image
     imgTest = cv2.imread('stars2.jpg', cv2.CV_LOAD_IMAGE_GRAYSCALE)
-    imgTestClear = imgFilter(imgTest, 'bilateral')
-    imgTestClear = imgFilter(imgTestClear, 'threshold')
+    imgTestClear = img_filter(imgTest, 'bilateral')
+    imgTestClear = img_filter(imgTestClear, 'threshold')
 
-    kpTest = extractKeyPoint(imgTestClear, 0.94)
+    kpTest = extract_key_point(imgTestClear, 0.92)
     print "Test stars: ", len(kpTest)
 
     # Load Train
     starsDB = StarsCatalog.StarsCatalog('catalog.db')
 
     NUM_STARS_THR = 8
-    RA = 350
+    RA = 10
     declination = 40
 
     if auto_mode == 1:
@@ -283,15 +241,19 @@ def main():
                 continue
             else:
                 print "FOUND"
-                skyArea=res[0]
-                result=res[1]
+
+#                skyArea=res[0]
+#                result=res[1]
                 break
     else:
         while 1:
-            magnitude = 3
+            magnitude = 3.5
             while 1:
-                skyArea = selectSkyArea(starsDB, RA, declination, 25, 25, magnitude)
-                tmp = starsCoordProjection(skyArea)
+                sky_area = select_sky_area(starsDB, RA, declination, 25, 25, magnitude)
+                out_img = np.zeros((800,800))
+                for star in sky_area.stars:
+                    draw_circle(out_img,[star.coordinate],5,0.6)
+                cv2.imshow("out",out_img)
 
                 print "wait key"
                 k = cv2.waitKey()
@@ -316,27 +278,26 @@ def main():
                 declination = (declination + 90) % 180 - 90
                 RA %= 360
 
-            kpTrain = starsCoordProjection(skyArea)
+            kpTrain = [star.coordinate for star in sky_area.stars]
 
             print "DB stars: ", len(kpTrain)
             print "DB stars: ", len(kpTest)
 
-            result = getMatch(kpTrain, kpTest)
-            if result is None:
+            match_points = get_match(kpTrain, kpTest)
+            if match_points is None:
                 print "no match"
                 continue
             else:
+                res = {}
+                for key in match_points.keys():
+                    res[key] = sky_area.get_star_by_coord(match_points[key])
                 break
 
-    count = 0
-    print result
     #    print dist,trainBase,idx,trainHashTable.getBasePoints(trainBase)
-    for point in result.keys():
-        drawCircle(imgTest, [kpTest[point]], 10, 255)
-        if result[point] > -1:
-            name = skyArea.getStarByIdx(result[point]).hip + ' - ' + skyArea.getStarByIdx(result[point]).name
-            cv2.putText(imgTest, name, kpTest[point], cv2.FONT_HERSHEY_TRIPLEX, 2, 255)
-        count += 1
+    for key in res.keys():
+        draw_circle(imgTest, [key], 10, 255)
+        cv2.putText(imgTest, res[key].hip + ' - ' + res[key].name, key, cv2.FONT_HERSHEY_TRIPLEX, 2, 255)
+
     #
 
     cv2.imwrite('testdec.jpg', imgTest)

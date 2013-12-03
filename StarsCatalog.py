@@ -1,6 +1,7 @@
 __author__ = 'liuc'
 
 import sqlite3 as lite
+from math import cos, sin, radians
 
 class CelestialCoord:
     def __init__(self,ascension,declination):
@@ -67,12 +68,13 @@ class CelestialCoord:
 
 
 class Star:
-    def __init__(self,hip,name,position,mag,absMag):
+    def __init__(self,hip,name,position,coordinate,mag,absMag):
         self._hip = hip
         self._name = name
         self._position = position
         self._mag = mag
         self._absMag = absMag
+        self._coordinate = coordinate
 
     @property
     def position(self):
@@ -91,8 +93,12 @@ class Star:
         return self._mag
 
     @property
-    def absMagnitude(self):
+    def abs_magnitude(self):
         return self._absMag
+
+    @property
+    def coordinate(self):
+        return self._coordinate
 
 class StarsMap:
     def __init__(self, center):
@@ -100,16 +106,44 @@ class StarsMap:
         self.stars = []
 
     def addStar(self,hip,name,position,mag,absMag):
-        self.stars += [Star(hip,name,position,mag,absMag)]
+
+        star_declination = radians(position.declinationDD)
+        star_RA = radians(position.ascensionDD)
+
+        center_declination = radians(self._center.declinationDD)
+        center_RA = radians(self._center.ascensionDD)
+
+        X = cos(star_declination) * sin(star_RA - center_RA)
+        X /= cos(center_declination) * cos(star_declination) * cos(star_RA - center_RA) + \
+             sin(star_declination) * sin(center_declination)
+        Y = -(sin(center_declination) * cos(star_declination) * cos(star_RA - center_RA) - \
+              sin(star_declination) * cos(center_declination))
+        Y /= cos(center_declination) * cos(star_declination) * cos(star_RA - center_RA) + \
+             sin(star_declination) * sin(center_declination)
+
+        X = 700 * X + 400
+        Y = 700 * Y + 400
+
+        coord = (int(X),int(Y))
+
+        self.stars += [Star(hip,name,position,coord,mag,absMag)]
 
     def getStarByName(self,name):
         for star in self.stars:
             if star.name == name:
                 return star
-        return None
+        else:
+            return None
 
     def getStarByIdx(self,idx):
         return self.stars[idx]
+
+    def get_star_by_coord(self,coordinate):
+        for star in self.stars:
+            if star.coordinate == coordinate:
+                return star
+        else:
+            return None
 
     @property
     def center(self):
@@ -127,7 +161,7 @@ class StarsCatalog:
 
         # Check if file exists
 
-    def getSky(self, (ascension, declination), (dAscension,dDeclination),maxMagnitude):
+    def getsky(self, (ascension, declination), (dAscension,dDeclination),maxMagnitude):
         # Input: sky center and size
         # Output: list of stars
 
